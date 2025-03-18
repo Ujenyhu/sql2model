@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sql2model"
+version = "0.1.0"
+dependencies = [
+    "click==8.1.8",
+    "colorama==0.4.6",
+    "greenlet==3.1.1",
+    "SQLAlchemy==2.0.39",
+    "sqlparse==0.5.3",
+    "typing_extensions==4.12.2",
+]
+description = "A CLI tool to convert SQL statements to models in Python or C#."
+authors = [
+    { name = "Egwuda Ujenyuojo Precious", email = "egwudaujenyuojo@gmail.com" },
+]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.12.4"
+
+
+[tool.setuptools]
+packages = ["cli", "parsers", "utils", "web"]
+package-dir = { "" = "src" }
+
+[project.scripts]
+sql2model = "cli.cli:main"

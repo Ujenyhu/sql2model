@@ -3,7 +3,7 @@ from utils.var_helper import SupportedLanguages
 
 @click.command()
 @click.argument("sql_file", required=False, type=click.File("r"))
-@click.option("--sql", help="SQL statement to convert to model")
+@click.option("--sql", type=str, help="SQL statement to convert to model")
 @click.option("--lang", "-l", type=click.Choice(["python", "csharp"]), required=True, help="Programming language you want a model for")
 
 def main(sql_file, sql, lang):
@@ -11,14 +11,13 @@ def main(sql_file, sql, lang):
         raise click.UsageError("You must provide either an SQL file or an SQL statement.")
    
    #Read from file if provided
-   read_sql = sql_file.read() if sql_file else None
-   sql_statement = sql if sql else read_sql
+   sql_statement = sql if sql else sql_file.read()
 
    if not sql_statement:
         raise click.UsageError("SQL statement cannot be empty.")
    
    if lang == SupportedLanguages.CSHARP:
-       print("Generate CSharp Model")
+       click.echo("Generate CSharp Model")
 
 if __name__ == "__main__":
     main()       

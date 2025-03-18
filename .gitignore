@@ -1,3 +1,5 @@
 sql2model_env/
+src/sql2model.egg-info/
 __pycache__/
 *.pyc
+*.pyo
