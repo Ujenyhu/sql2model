@@ -27,4 +27,4 @@ packages = ["cli", "parsers", "utils", "web"]
 package-dir = { "" = "src" }
 
 [project.scripts]
-sql2model = "cli.cli:main"
+sql2model = "cli.cli:cli"

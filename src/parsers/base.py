@@ -7,5 +7,8 @@ class BaseParser(ABC):
         self.parsedSql = sqlparse.parse(sql)
 
     @abstractmethod
-    def parse_sql(self) -> str:
-        pass    
+    def convert_to_model(self) -> str:
+        pass   
+
+       
+
