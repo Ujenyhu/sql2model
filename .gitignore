@@ -3,3 +3,6 @@ src/sql2model.egg-info/
 __pycache__/
 *.pyc
 *.pyo
+
+
+.vscode/

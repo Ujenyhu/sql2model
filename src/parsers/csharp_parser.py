@@ -29,10 +29,10 @@ class CSharpParser(BaseParser):
                         attributes.append("[Key]")
                     if not is_nullable:
                         attributes.append("[Required]")
-                    # Use the raw column type for additional info if needed
-                    if any(col_type.upper().startswith(t) for t in ["VARCHAR", "NVARCHAR", "CHAR", "NCHAR", "DATETIME", "DECIMAL", "NUMERIC"]):
+                    
+                    if any(col_type.upper().startswith(t) for t in ["DATETIME", "DECIMAL"]):
                         attributes.append(f'[Column(TypeName = "{col_type}")]')
-                    # Prefer the separate default constraint if exists
+                   
                     if col_name in defaults:
                         attributes.append(f'[DefaultValue("{defaults[col_name]}")]')
                     elif default_value:
@@ -82,13 +82,12 @@ class CSharpParser(BaseParser):
 
     def _extract_columns(self, stmt) -> list:
         columns = []
-        # This regex expects a line starting with a bracketed column name,
-        # then the SQL type (also in brackets) with optional size/params, and then the nullability.
+
         column_pattern = re.compile(
             r'^\s*\[(?P<name>\w+)\]\s+\[(?P<type>\w+)\](?:\((?P<params>[^\)]+)\))?\s*(?P<nullability>NULL|NOT NULL)?',
             re.IGNORECASE
         )
-        # For inline default values (if any) on the same line.
+        
         default_pattern = re.compile(r"DEFAULT\s+(?P<default>\S+)", re.IGNORECASE)
         
         for line in stmt.value.splitlines():
@@ -125,7 +124,7 @@ class CSharpParser(BaseParser):
             r'\[(?P<col>\w+)\].*DEFAULT\s+(?P<default>\S+)',
             re.IGNORECASE
         )
-        # Separate default constraints defined outside column definitions
+        # Separate default constraints defined outside column
         constraint_default_pattern = re.compile(
             r'CONSTRAINT\s+\[?\w+\]?\s+DEFAULT\s+(?P<default>\S+)\s+FOR\s+\[(?P<col>\w+)\]',
             re.IGNORECASE
@@ -145,7 +144,7 @@ class CSharpParser(BaseParser):
 
 
     def _map_sql_type_to_csharp(self, sql_type: str, is_nullable: bool) -> str:
-        # Remove size/precision details from the SQL type for mapping purposes
+        
         base_type = re.split(r"\(", sql_type)[0].upper()
         type_map = {
             "INT": "int",
@@ -175,7 +174,7 @@ class CSharpParser(BaseParser):
             "IMAGE": "byte[]"
         }
         cs_type = type_map.get(base_type, "string")
-        # For non-string/non-array types, append a nullable marker if appropriate
+       
         if is_nullable and cs_type not in ["int", "byte[]"]:
             cs_type += "?"
         return cs_type
