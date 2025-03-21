@@ -134,16 +134,18 @@ class CSharpParser(BaseParser):
 
     def _extract_default_constraints(self, stmt) -> dict:
         defaults = {}
-        # Inline default constraints
+        # Inline default constraints (fixed regex)
         inline_default_pattern = re.compile(
-            r'\[(?P<col>\w+)\].*DEFAULT\s+(?P<default>\S+)',
+            r'\[(?P<col>\w+)\].*DEFAULT\s+(?P<default>["\']?.+?["\']?)',
             re.IGNORECASE
         )
-        # Separate default constraints defined outside column
+
+        # Separate default constraints (fixed regex)
         constraint_default_pattern = re.compile(
-            r'CONSTRAINT\s+\[?\w+\]?\s+DEFAULT\s+(?P<default>\S+)\s+FOR\s+\[(?P<col>\w+)\]',
+            r'CONSTRAINT\s+\[?\w+\]?\s+DEFAULT\s+(?P<default>["\']?.+?["\']?)\s+FOR\s+\[(?P<col>\w+)\]',
             re.IGNORECASE
         )
+        
         for line in stmt.value.splitlines():
             inline_match = inline_default_pattern.search(line)
             if inline_match:
