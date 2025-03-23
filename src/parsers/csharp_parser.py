@@ -5,23 +5,30 @@ import re
 class CSharpParser(BaseParser):
 
     def convert_to_model(self):
-        model = (
-            "using System.ComponentModel;\n"
-            "using System.ComponentModel.DataAnnotations;\n"
-            "using System.ComponentModel.DataAnnotations.Schema;\n\n"
-        )
+        models = {}  
+        alter_constraints = {} 
+        last_table_name = None
 
         for stmt in self.parsedSql:
-            if stmt.get_type().upper() == "CREATE":
+            stmt_type = stmt.get_type().upper()
+            
+            if stmt_type == "CREATE":
+
+                model_text = (
+                    "using System.ComponentModel;\n"
+                    "using System.ComponentModel.DataAnnotations;\n"
+                    "using System.ComponentModel.DataAnnotations.Schema;\n\n"
+                )
+
                 table_name, schema_name = self._extract_table_and_schema(stmt)
                 schema_part = f', Schema = "{schema_name}"' if schema_name else ""
-                model += f'[Table("{table_name}"{schema_part})]\n'
-                model += f"public class {table_name}\n{{\n"
+                model_text += f'[Table("{table_name}"{schema_part})]\n'
+                model_text += f"public class {table_name}\n{{\n"
                 
                 primary_keys = self._extract_primary_keys(stmt)
                 defaults = self._extract_default_constraints(stmt)
-                
                 columns = self._extract_columns(stmt)
+
                 for col_name, col_type, params, is_nullable, default_value in columns:
                     cs_type = self._map_sql_type_to_csharp(col_type, is_nullable)
                     
@@ -30,8 +37,7 @@ class CSharpParser(BaseParser):
                         attributes.append("[Key]")
 
                     if not is_nullable:
-                        attributes.append(f'[Required(ErrorMessage = "Required")]')
-                    
+                        attributes.append('[Required(ErrorMessage = "Required")]')
                     
                     if any(col_type.upper().startswith(t) for t in ["DATETIME", "DATETIME2", "DATETIMEOFFSET", "SMALLDATETIME", "DECIMAL", "NUMERIC"]): 
                         attributes.append(f'[Column(TypeName = "{col_type}")]')
@@ -42,24 +48,55 @@ class CSharpParser(BaseParser):
                     if col_type.upper() == "TIME":
                         attributes.append("[DataType(DataType.Time)]")
 
-                    # String length annotation for string-like types
                     if any(col_type.upper().startswith(t) for t in ["VARCHAR", "NVARCHAR", "CHAR", "NCHAR", "TEXT", "NTEXT"]):
                         if params and params.lower() != "max":
                             attributes.append(f'[StringLength({params})]')
-                        
-
-                    # Handle default values
+                    
+                    # Handle default values from CREATE STATEMENT
                     if col_name in defaults:
                         attributes.append(f'[DefaultValue("{defaults[col_name]}")]')
                     elif default_value:
                         attributes.append(f'[DefaultValue("{default_value}")]')
-                    
+
+                    # Apply any stored ALTER constraints
+                    if table_name in alter_constraints and col_name in alter_constraints[table_name]:
+                        attributes.append(f'[DefaultValue("{alter_constraints[table_name][col_name]}")]')
+
                     for attr in attributes:
-                        model += f"    {attr}\n"
-                    model += f"    public {cs_type} {col_name} {{ get; set; }}\n\n"
-                    
-                model += "}\n\n"
-        return model
+                        model_text += f"    {attr}\n"
+                    model_text += f"    public {cs_type} {col_name} {{ get; set; }}\n\n"
+                
+                model_text += "}\n\n"
+                models[table_name] = model_text
+
+            elif stmt_type == "ALTER":
+                table_name, _ = self._extract_table_and_schema(stmt)
+                defaults = self._extract_default_constraints(stmt)
+
+                if table_name in models:
+                    table_model = models[table_name]
+                    for col, default in defaults.items():
+                        
+                        pattern = r"((?:\s*\[.*\]\s*\n)*)\s*public\s+(\S+)\s+" + re.escape(col) + r"\s+\{ get; set; \}"
+                        
+                        def replace(match):
+                            attributes_block = match.group(1)
+                            if "[DefaultValue(" in attributes_block:
+                                return match.group(0)
+                            replacedprop =  f"{attributes_block}    [DefaultValue(\"{default}\")]\n    public {match.group(2)} {col} {{ get; set; }}"
+                            return replacedprop
+
+                        table_model = re.sub(pattern, replace, table_model)
+                    models[table_name] = table_model
+                else:
+                    # Store the constraint for later if CREATE hasn't run yet
+                    if table_name not in alter_constraints:
+                        alter_constraints[table_name] = {}
+                    alter_constraints[table_name].update(defaults)
+
+
+        csModel = "".join(models.values())
+        return csModel
 
 
     def _extract_table_and_schema(self, stmt) -> tuple:
@@ -74,7 +111,18 @@ class CSharpParser(BaseParser):
         if match:
             table_name = match.group(1)
             return table_name, "dbo"
-        return "TableName", "dbo"
+        
+        
+        match = re.search(r"ALTER\s+TABLE\s+\[?(\w+)\]?\.\[?(\w+)\]?", stmt.value, re.IGNORECASE)
+        if match: 
+            return match.group(2), match.group(1) 
+
+        
+        match = re.search(r"ALTER\s+TABLE\s+\[?(\w+)\]?", stmt.value, re.IGNORECASE)
+        if match:
+            return match.group(1), "dbo"
+        
+        return "UnknownTable", "dbo"
 
 
     def _extract_primary_keys(self, stmt) -> set:
@@ -134,30 +182,30 @@ class CSharpParser(BaseParser):
 
     def _extract_default_constraints(self, stmt) -> dict:
         defaults = {}
-        # Inline default constraints (fixed regex)
+
+        # Inline default constraints
         inline_default_pattern = re.compile(
-            r'\[(?P<col>\w+)\].*DEFAULT\s+(?P<default>["\']?.+?["\']?)',
+            r'DEFAULT\s+\(?\s*(?P<default>NULL|["\']?.+?["\']?)\s*\)?\s+FOR\s+\[(?P<col>\w+)\]',
             re.IGNORECASE
         )
 
-        # Separate default constraints (fixed regex)
+        # Separate default constraints (ALTER TABLE constraints)
         constraint_default_pattern = re.compile(
             r'CONSTRAINT\s+\[?\w+\]?\s+DEFAULT\s+(?P<default>["\']?.+?["\']?)\s+FOR\s+\[(?P<col>\w+)\]',
             re.IGNORECASE
         )
-        
-        for line in stmt.value.splitlines():
-            inline_match = inline_default_pattern.search(line)
-            if inline_match:
-                col = inline_match.group("col")
-                default_val = inline_match.group("default")
-                defaults[col] = default_val
 
-            constraint_match = constraint_default_pattern.search(line)
-            if constraint_match:
-                col = constraint_match.group("col")
-                default_val = constraint_match.group("default")
-                defaults[col] = default_val
+        # Search for inline default constraints
+        for match in inline_default_pattern.finditer(stmt.value):
+            col = match.group("col")
+            default_val = match.group("default")
+            defaults[col] = default_val
+
+        # Search for separate ALTER TABLE constraints
+        for match in constraint_default_pattern.finditer(stmt.value):
+            col = match.group("col")
+            default_val = match.group("default")
+            defaults[col] = default_val
 
         return defaults
 
