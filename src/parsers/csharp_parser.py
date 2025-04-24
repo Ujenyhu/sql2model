@@ -132,32 +132,76 @@ class CSharpParser(BaseParser):
             r"PRIMARY\s+KEY\s*(?:CLUSTERED|NONCLUSTERED)?\s*\((.*?)\)",
             re.IGNORECASE | re.DOTALL
         )
+
+        pk_inline_pattern = re.compile(
+            r"\[(?P<col>\w+)\]\s+\w+.*?\bPRIMARY\s+KEY\b",
+            re.IGNORECASE
+        )
+
         match = pk_pattern.search(stmt.value)
         if match:
             keys_str = match.group(1)
             keys = re.findall(r"\[(\w+)\]", keys_str)
             primary_keys.update(keys)
+        
+    
+        for match in pk_inline_pattern.finditer(stmt.value):
+          primary_keys.add(match.group("col"))
+
         return primary_keys
-
-
+    
 
     def _extract_columns(self, stmt) -> list:
         columns = []
+        
+
+        # column_pattern = re.compile(
+        #     r'^\s*\[(?P<name>\w+)\]\s+\[(?P<type>\w+)\](?:\((?P<params>[^\)]+)\))?\s*(?P<nullability>NULL|NOT NULL)?',
+        #     re.IGNORECASE
+        # )
 
         column_pattern = re.compile(
-            r'^\s*\[(?P<name>\w+)\]\s+\[(?P<type>\w+)\](?:\((?P<params>[^\)]+)\))?\s*(?P<nullability>NULL|NOT NULL)?',
+            r'^\s*\[(?P<name>\w+)\]\s+\[(?P<type>\w+)\](?:\((?P<params>[^\)]+)\))?\s*(?P<nullability>NULL|NOT NULL)?(?:DEFAULT\s+(?P<default>(?:\([^\)]+\))|(?:\'[^\']+\')|(?:\w+)))?(?:\s*[,)]|\s*$)',
             re.IGNORECASE
         )
+
+        # column_pattern = re.compile(
+        #     r'^\s*\[(?P<name>\w+)\]\s+'                      # Column name in brackets
+        #     r'\[?(?P<type>\w+)\]?'                           # Data type (optional square brackets)
+        #     r'(?:\((?P<params>[^\)]+)\))?\s*'                # Optional parameters (like VARCHAR(100))
+        #     r'(?P<nullability>NOT\s+NULL|NULL)?\s*'          # Nullability (optional)
+        #     r'(?:DEFAULT\s+(?P<default>'                     # Default value start
+        #     r'(?:\([^\)]+\))|'                               # Case 1: Parentheses, e.g., (GETDATE())
+        #     r'(?:\'[^\']+\')|'                               # Case 2: Single-quoted, e.g., 'ENABLED'
+        #     r'(?:\w+))'                                      # Case 3: Simple keyword, e.g., 0, NULL, CURRENT_TIMESTAMP
+        #     r')?'                                            # End default value
+        #     r'(?:\s*[,)]|\s*$)',                             # Ensure we match only the column definition
+        #     re.IGNORECASE | re.MULTILINE
+        # ) 
+
+
+        # column_pattern = re.compile(
+        #     r'^\s*\[(?P<name>\w+)\]\s+'
+        #     r'\[?(?P<type>\w+)\]?'
+        #     r'(?:\((?P<params>[^\)]+)\))?\s*'  
+        #     r'(?P<nullability>NOT\s+NULL|NULL)?\s*'         
+        #     r'(?:DEFAULT\s+(?P<default>.*?))?\s*'
+        #     r'(?:,|$)',  
+        #     re.IGNORECASE | re.MULTILINE
+        # )     
+
+
         
-        default_pattern = re.compile(r"DEFAULT\s+(?P<default>\S+)", re.IGNORECASE)
-        
+
+        default_pattern = re.compile(r"DEFAULT\s+(?P<default>.+)", re.IGNORECASE)
+
         for line in stmt.value.splitlines():
             line = line.strip()
-           
-            if not line.startswith("["):
+
+            
+            if not line or "CONSTRAINT" in line.upper() or line.startswith(")") or line.startswith("("):
                 continue
-            if "CONSTRAINT" in line.upper():
-                continue
+
             match = column_pattern.match(line)
             if match:
                 col_name = match.group("name")
@@ -170,14 +214,17 @@ class CSharpParser(BaseParser):
                 is_nullable = True
                 if nullability and "NOT NULL" in nullability.upper():
                     is_nullable = False
-                    
+
+                # Extract default value
                 default_value = None
                 default_match = default_pattern.search(line)
                 if default_match:
-                    default_value = default_match.group("default")
+                    default_value = default_match.group("default").strip("();' ,")
+                    
                 columns.append((col_name, col_type, params, is_nullable, default_value))
+
         return columns
-    
+
 
 
     def _extract_default_constraints(self, stmt) -> dict:
@@ -198,13 +245,13 @@ class CSharpParser(BaseParser):
         # Search for inline default constraints
         for match in inline_default_pattern.finditer(stmt.value):
             col = match.group("col")
-            default_val = match.group("default")
+            default_val = match.group("default").strip("();' ,")
             defaults[col] = default_val
 
         # Search for separate ALTER TABLE constraints
         for match in constraint_default_pattern.finditer(stmt.value):
             col = match.group("col")
-            default_val = match.group("default")
+            default_val = match.group("default").strip("();' ,")
             defaults[col] = default_val
 
         return defaults

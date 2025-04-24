@@ -6,7 +6,7 @@ class BaseParser(ABC):
         self.sql = sql
         self.cleaned_sql = self._clean_sql(sql)
         self.parsedSql = sqlparse.parse(self.cleaned_sql)
-        # self.parsedSql = self._split_statements(self.cleaned_sql)
+        #self.parsedSql = self._split_statements(self.cleaned_sql)
 
 
     def _clean_sql(self, sql: str) -> str:
