@@ -13,7 +13,7 @@ dependencies = [
     "sqlparse==0.5.3",
     "typing_extensions==4.12.2",
 ]
-description = "A CLI tool to convert SQL statements to models in Python or C#."
+description = "Convert T-SQL DDL `CREATE TABLE` to model classes"
 authors = [
     { name = "Egwuda Ujenyuojo Precious", email = "egwudaujenyuojo@gmail.com" },
 ]
