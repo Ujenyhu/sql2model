@@ -41,7 +41,7 @@ class CSharpParser(BaseParser):
                         attrs.append('[Required(ErrorMessage = "Required")]')
                     # Column type attributes
                     if any(full_type.upper().startswith(t) for t in ["DATETIME", "DATETIME2", "DATETIMEOFFSET", "SMALLDATETIME", "DECIMAL", "NUMERIC"]):
-                        attrs.append(f'[Column(TypeName = "{full_type}")]')
+                        attrs.append(f'[Column(TypeName = "{full_type.lower()}")]')
                     if full_type.upper() == "DATE":
                         attrs.append("[DataType(DataType.Date)]")
                     if full_type.upper() == "TIME":
@@ -53,7 +53,7 @@ class CSharpParser(BaseParser):
                             attrs.append(f'[StringLength({m.group(1)})]')
 
                     # Default value
-                    if default_val is not None:
+                    if default_val is not None and default_val.upper() != "GETDATE()":
                         attrs.append(f'[DefaultValue("{default_val}")]')
 
                     # Append attributes & property

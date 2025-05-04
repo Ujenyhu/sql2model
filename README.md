@@ -74,21 +74,33 @@ _(more coming soon...)_
 **SQL Input:**
 
 ```sql
-CREATE TABLE Users (
-    Id INT PRIMARY KEY,
-    Username NVARCHAR(50) NOT NULL,
-    Email NVARCHAR(100),
-    CreatedAt DATETIME DEFAULT GETDATE()
+CREATE TABLE [dbo].[Users] (
+    [Id] INT PRIMARY KEY,
+    [Username] NVARCHAR(50) NOT NULL,
+    [Email] NVARCHAR(100),
+    [CreatedAt] DATETIME DEFAULT GETDATE()
 );
 ```
 
 **Output (C#):**
 
 ```csharp
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+[Table("Users", Schema = "dbo")]
 public class Users {
+    [Key]
     public int Id { get; set; }
+
+    [StringLength(50)]
     public string Username { get; set; }
+
+    [StringLength(100)]
     public string? Email { get; set; }
+
+    [Column(TypeName = "datetime")]
     public DateTime CreatedAt { get; set; }
 }
 ```
@@ -102,12 +114,14 @@ When using multiple `CREATE TABLE` statements in a single `.sql` file, **always*
 - A **semicolon** (`;`), or  
 - A standalone `GO` on its own line  
 
-This prevents the parser from merging consecutive table definitions.  
+This ensures the parser does not merge consecutive table definitions.
+
+Also, if you are defining constraints (e.g., via ALTER TABLE) separately after a CREATE TABLE, you must place a `GO` after the table and again after the constraint block.  
 
 ```sql
-CREATE TABLE Foo (
-  Id   INT PRIMARY KEY,
-  Name NVARCHAR(50)
+CREATE TABLE Users (
+  [Id]  INT PRIMARY KEY,
+  [Name] NVARCHAR(50)
 );  -- semicolon here
 
 GO   -- or GO here
@@ -115,21 +129,36 @@ GO   -- or GO here
 CREATE TABLE Bar (
   Id   INT PRIMARY KEY,
   Date DATE
-);  
+)
+
+GO
+
+--OR
+
+CREATE TABLE Users (
+  [Id] INT PRIMARY KEY,
+  [Name] NVARCHAR(50),
+  [Status] VARCHAR(20) NULL,
+)
+GO
+
+ALTER TABLE [dbo].[Users] ADD CONSTRAINT DF_Users_Status DEFAULT ('Active') FOR [Status];
+GO
+
 ```
 
 ---
 
-## 🧩 Future Plans
+<!-- ## Future Plans
 
 - Web-based interface
 - JSON Schema output
 - Plugin system for custom templates
-- More language support
+- More language support -->
 
 ---
 
-## 🧪 Contributing
+<!-- ## 🧪 Contributing
 
 Contributions are welcome!
 
@@ -142,7 +171,7 @@ pip install -r requirements.txt
 
 # Run CLI
 python -m sql2model.cli schema.sql --lang csharp
-```
+``` -->
 
 ---
 
