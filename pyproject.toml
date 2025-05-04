@@ -23,7 +23,7 @@ requires-python = ">=3.12.4"
 
 
 [tool.setuptools]
-packages = ["cli", "parsers", "utils", "web"]
+packages = ["cli", "parsers", "utils"]
 package-dir = { "" = "src" }
 
 [project.scripts]
